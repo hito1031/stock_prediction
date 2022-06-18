@@ -8,11 +8,11 @@ from tensorflow.keras.models import Sequential
 from datetime import datetime as dt
 from datetime import timedelta
 
-def load_data(data_csv):
-    data = pd.read_csv(data_csv,index_col='日付', parse_dates=True, thousands=',', encoding="shift-jis")
+def load_data(data_csv, date):
+    data = pd.read_csv(data_csv,index_col=date, parse_dates=True, thousands=',', encoding="shift-jis")
     datanull = pd.isnull(data)
     data = data.dropna(how="all")
-    data = data.iloc[::-1]
+    #data = data.iloc[::-1]
     data_np = data.to_numpy()
     return data, data_np
 # data, data_np = load_data("日経平均00-22日足.csv")
@@ -33,32 +33,49 @@ def differ(data):
 #前日比
 def up_or_down(data_close):
     ans = []
-    ans = np.append(ans, 0)
+    
     for i in range(1,len(data_close)):
-        if data_close[i]>=data_close[i-1]:
+        if data_close[i]>data_close[i-1]:
             ans = np.append(ans, 1)
         else: 
             ans = np.append(ans, 0)
-    
+    ans = np.append(ans, 0)
     return ans
 #data["騰落"] = up_or_down(data["終値"])
 def up_or_down_2per(data_close):
     ans = []
-    ans = np.append(ans, [1,0,0])
+    
     for i in range(1,len(data_close)):
-        if data_close[i-1]<=data_close[i]<=(data_close[i-1]*1.02):
+        if data_close[i-1]<=data_close[i]<=(data_close[i-1]*1.01):
             ans = np.append(ans, [0,1,0])
-        elif (data_close[i-1]*1.02)<data_close[i]:
+        elif (data_close[i-1]*1.01)<data_close[i]:
             ans = np.append(ans, [0,0,1])
         else: 
             ans = np.append(ans, [1,0,0])
+    ans = np.append(ans, [1,0,0])
     ans = np.reshape(ans,(len(data_close), 3))
+    return ans
+
+def up_or_down_or_stay(data_close):
+    ans = []
+    for i in range(1,len(data_close)):
+        if data_close[i-1]==data_close[i]:
+            ans = np.append(ans, [0,1,0])
+        elif data_close[i-1]<data_close[i]:
+            ans = np.append(ans, [0,0,1])
+        else: 
+            ans = np.append(ans, [1,0,0])
+    ans = np.append(ans, [1,0,0])
+    ans = np.reshape(ans,(len(data_close), 3))
+    
     return ans
 
 #テクニカル指標作成
 #移動平均線
-def average_line(data_np, n, mode="same"):
-    ave = np.convolve(data_np, np.ones(n)/float(n), mode=mode)
+def average_line(data,n):
+    ave = data.rolling(n).mean()
+    for i in range(n-1):
+        ave[i] = data.rolling(i).mean()[i]
     return ave
 
 
@@ -91,16 +108,16 @@ def cross(data_differ):
 
 
 #エンベロープ
-def upper_envelope(value, average_line, p, dataset_np):
+def upper_envelope(data_close, data_average_line, p):
     env = []
-    for i in range(dataset_np.shape[0]):
-        e = dataset_np[i][average_line] * (100+p) / 100 - dataset_np[i][value]
+    for i in range(len(data_close)):
+        e = data_average_line[i] * (100+p) / 100 - data_close[i]
         env = np.append(env, e)
     return env
-def lower_envelope(value, average_line, p, dataset_np):
+def lower_envelope(data_close, data_average_line, p):
     env = []
-    for i in range(dataset_np.shape[0]):
-        e = dataset_np[i][average_line] * (100-p) / 100 - dataset_np[i][value]
+    for i in range(len(data_close)):
+        e = data_average_line[i] * (100-p) / 100 - data_close[i]
         env = np.append(env, e)
     return env
 #data["アッパーエンベロープー終値"] = upper_envelope(3, 5, 1, data_np)
@@ -118,11 +135,11 @@ def ema(closeList=[], term=5):
 
 
 #ボリンジャーバンド
-def bband(data):
+def bband(data_close):
     bband = pd.DataFrame()
-    bband['終値'] = data['終値']
-    bband['mean'] = data['終値'].rolling(window=20).mean()
-    bband['std'] = data['終値'].rolling(window=20).std()
+    bband['終値'] = data_close
+    bband['mean'] = data_close.rolling(window=20).mean()
+    bband['std'] = data_close.rolling(window=20).std()
     bband['upper'] = bband['mean'] + (bband['std'] * 2)
     bband['lower'] = bband['mean'] - (bband['std'] * 2)
     return bband['upper'], bband['lower']
@@ -157,8 +174,8 @@ def rsi(data_close,num):
     data_up_sum=[]
     data_down_sum=[]
     for i in range(num):
-        data_up_sum.append(0.5)
-        data_down_sum.append(0.5)
+        data_up_sum.append(abs(sum(data_up[:i]))+0.001)
+        data_down_sum.append(abs(sum(data_down[:i]))+0.001)
     for i in range(num,len(data_diff)):
         data_up_sum.append(abs(sum(data_up[i-num:i])))
         data_down_sum.append(abs(sum(data_down[i-num:i])))
@@ -166,8 +183,7 @@ def rsi(data_close,num):
     for i in range(len(data_up_sum)):
         rsi.append(0.5-(data_up_sum[i]/(data_up_sum[i]+data_down_sum[i])))
     return rsi
-#data["rsi9"] = md.rsi(data["終値"],9)
-#data["rsi14"] = md.rsi(data["終値"],14)
+
 def data_from_year(data_index):
     data_indexx=[]
     data_indexxx=[]

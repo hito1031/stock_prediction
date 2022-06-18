@@ -49,10 +49,12 @@ def build_model(layers):
     model = Sequential()
 
     model.add(LSTM(layers[2],input_shape = (layers[1], layers[0]),  return_sequences=True))
-    model.add(Dropout(0.2))
+    model.add(Activation('leakyrelu'))
+    model.add(Dropout(0.5))
 
     model.add(LSTM(layers[2],return_sequences=False))
-    model.add(Dropout(0.2))
+    model.add(Activation('leakyrelu'))
+    model.add(Dropout(0.5))
 
     model.add(Dense(layers[3]))
     model.add(Activation("linear"))
@@ -66,10 +68,10 @@ def build_model_Binary_class(layers):
     model = Sequential()
 
     model.add(LSTM(layers[2],input_shape = (layers[1], layers[0]),  return_sequences=True))
-    model.add(Dropout(0.2))
+    model.add(Dropout(0.5))
 
     model.add(LSTM(layers[2],return_sequences=False))
-    model.add(Dropout(0.2))
+    model.add(Dropout(0.5))
 
     model.add(Dense(layers[3]))
     model.add(Activation("sigmoid"))
@@ -141,15 +143,15 @@ def draw_tran_result(model, x_test, y_test):
     plt.plot(range(0, len(y_test)), y_test, color="r", label="expected")
     plt.legend()
 
-def evalution(x_test, y_test,model):
+def evalution(x_test, y_test,model,p=0.5):
     pred_y=[]
     for i in model.predict(x_test):
-        if i>=0.5:pred_y=np.append(pred_y,1)
+        if i>=p:pred_y=np.append(pred_y,1)
         else:pred_y=np.append(pred_y,0)
     confusion = confusion_matrix(y_test,pred_y)
     accuracy = (confusion[0][0]+confusion[1][1])/len(pred_y)
-    precision = confusion[0][0]/(confusion[0][0]+confusion[1][0])
-    recall = confusion[0][0]/(confusion[0][0]+confusion[0][1])
+    precision = confusion[1][1]/(confusion[0][1]+confusion[1][1])
+    recall = confusion[1][1]/(confusion[1][0]+confusion[1][1])
     F_value = 2*precision*recall/(precision+recall)
     print("混同行列{}".format(confusion))
     print("正解率は{} 適合率は{} 再現率は{} F値は{}".format(accuracy,precision,recall,F_value))
@@ -175,21 +177,40 @@ def evalution_many_class(x_test, y_test,model):
     print("正解率は{} \n適合率は{} \n再現率は{} \nF値は{}".format(accuracy,precision,recall,F_value))
 
 
-def baibai(x_test, model,x_test_close):
+def baibai(x_test, model,x_test_close,p=0.5):
     y_pred=[]
     for i in model.predict(x_test):
-        if i>=0.5:y_pred=np.append(y_pred,1)
+        if i>=p:y_pred=np.append(y_pred,1)
         else:y_pred=np.append(y_pred,0)
     position=0
     position_value=0
     value=0
     for i in range(len(y_pred)):
         if y_pred[i]==1:
-            if position==0: position_value=x_test_close[i]
-            position=1
+            position_value+=x_test_close[i]
+            position+=1
         elif y_pred[i]==0:
-            if position==1: value=value+(x_test_close[i]-position_value)
+            if position==1: value=value+(x_test_close[i]*position-position_value)
             position=0
+            position_value=0
     return value
 
+def baibai_many_class(x_test, model,x_test_close):
+
+    position=0
+    position_value=0
+    value=0
+    for i in range(len(x_test_close)):
+        if np.argmax(model.predict(x_test)[i])==2:
+            position_value+=x_test_close[i]
+            position+=1
+        elif np.argmax(model.predict(x_test)[i])==1:
+            if position==1: value=value+(x_test_close[i]*position-position_value)
+            position=0
+            position_value=0
+        else:
+            if position==1: value=value+(x_test_close[i]*position-position_value)
+            position=0
+            position_value=0
+    return value
 
