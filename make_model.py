@@ -49,11 +49,11 @@ def build_model(layers):
     model = Sequential()
 
     model.add(LSTM(layers[2],input_shape = (layers[1], layers[0]),  return_sequences=True))
-    model.add(Activation('leakyrelu'))
+    model.add(Activation('tanh'))
     model.add(Dropout(0.5))
 
     model.add(LSTM(layers[2],return_sequences=False))
-    model.add(Activation('leakyrelu'))
+    model.add(Activation('tanh'))
     model.add(Dropout(0.5))
 
     model.add(Dense(layers[3]))
